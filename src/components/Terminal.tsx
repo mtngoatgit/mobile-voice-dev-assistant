@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { MicButton } from "./MicButton";
 import { useSpeechRecognition } from "~/hooks/useSpeechRecognition";
 import { useTypingEffect } from "~/hooks/useTypingEffect";
+import { useTextToSpeech } from "~/hooks/useTextToSpeech";
 import { api } from "~/trpc/react";
 
 interface TerminalLine {
@@ -30,8 +31,16 @@ export function Terminal() {
   ]);
   const [currentInput, setCurrentInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [verbosity, setVerbosity] = useState<"brief" | "verbose">("verbose"); // TODO: Get from settings
   const terminalRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Text-to-speech hook
+  const { speak, stop, isSpeaking } = useTextToSpeech({
+    voice: "default", // TODO: Get from settings
+    rate: 1.0,
+    volume: 0.8,
+  });
 
   const scrollToBottom = useCallback(() => {
     if (terminalRef.current) {
@@ -56,7 +65,8 @@ export function Terminal() {
   // AI processing mutation
   const planAndCreateIssues = api.ai.planAndOpenIssues.useMutation({
     onSuccess: (result) => {
-      addLine("assistant", `✅ Created ${result.totalIssuesCreated} GitHub issues`);
+      const successMessage = `✅ Created ${result.totalIssuesCreated} GitHub issues`;
+      addLine("assistant", successMessage);
       addLine("system", `Summary: ${result.planSummary}`);
       
       result.createdIssues.forEach((issue, index) => {
@@ -64,10 +74,19 @@ export function Terminal() {
         addLine("system", `   ${issue.url}`);
       });
       
+      // Text-to-speech feedback based on verbosity setting
+      if (verbosity === "verbose") {
+        speak(`Task completed. Created ${result.totalIssuesCreated} GitHub issues. ${result.planSummary}`);
+      } else {
+        speak("Task complete");
+      }
+      
       setIsProcessing(false);
     },
     onError: (error) => {
-      addLine("assistant", `❌ Error: ${error.message}`);
+      const errorMessage = `❌ Error: ${error.message}`;
+      addLine("assistant", errorMessage);
+      speak(`Error: ${error.message}`);
       setIsProcessing(false);
     },
   });
@@ -86,7 +105,7 @@ export function Terminal() {
           owner: "mtngoatgit", // TODO: Get from settings
           name: "mobile-voice-dev-assistant", // TODO: Get from settings
         },
-        verbosity: "verbose", // TODO: Get from settings
+        verbosity, // TODO: Get from settings
         labels: ["voice-created"], // TODO: Get from settings
       });
     } else {
@@ -119,7 +138,7 @@ export function Terminal() {
           owner: "mtngoatgit", // TODO: Get from settings
           name: "mobile-voice-dev-assistant", // TODO: Get from settings
         },
-        verbosity: "verbose", // TODO: Get from settings
+        verbosity, // TODO: Get from settings
         labels: ["voice-created"], // TODO: Get from settings
       });
     }
@@ -204,8 +223,20 @@ export function Terminal() {
             disabled={isListening || isProcessing}
           />
           
-          {/* Mic Button */}
-          <div className="flex-shrink-0">
+          {/* Control Buttons */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* TTS Stop Button */}
+            {isSpeaking && (
+              <button
+                onClick={stop}
+                className="bg-red-600 hover:bg-red-500 text-white px-2 py-2 rounded font-mono text-xs border-2 border-opacity-50 transition-all duration-150 font-semibold"
+                title="Stop speaking"
+              >
+                🔇
+              </button>
+            )}
+            
+            {/* Mic Button */}
             <MicButton
               isListening={isListening}
               hasPermission={hasPermission}
