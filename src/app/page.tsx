@@ -1,69 +1,67 @@
-import Link from "next/link";
+"use client";
 
-import { LatestPost } from "~/app/_components/post";
-import { auth } from "~/server/auth";
-import { api, HydrateClient } from "~/trpc/server";
+import { useState, useRef, useEffect } from "react";
+import { useUser } from "@clerk/nextjs";
+import { SignIn } from "@clerk/nextjs";
+import { Terminal } from "~/components/Terminal";
+import { SettingsSheet } from "~/components/SettingsSheet";
 
-export default async function Home() {
-  const hello = await api.post.hello({ text: "from tRPC" });
-  const session = await auth();
+export default function Home() {
+  const { isLoaded, isSignedIn } = useUser();
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  if (session?.user) {
-    void api.post.getLatest.prefetch();
+  if (!isLoaded) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-black text-green-400">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-400 mx-auto mb-4"></div>
+          <p className="font-mono">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isSignedIn) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-black text-green-400 p-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <h1 className="text-2xl font-mono font-bold mb-2">Voice Dev Assistant</h1>
+            <p className="text-green-300 font-mono text-sm">Terminal-style mobile voice interface</p>
+          </div>
+          <div className="bg-gray-900 border border-green-500 rounded-lg p-4">
+            <SignIn />
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <HydrateClient>
-      <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white">
-        <div className="container flex flex-col items-center justify-center gap-12 px-4 py-16">
-          <h1 className="text-5xl font-extrabold tracking-tight sm:text-[5rem]">
-            Create <span className="text-[hsl(280,100%,70%)]">T3</span> App
-          </h1>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-8">
-            <Link
-              className="flex max-w-xs flex-col gap-4 rounded-xl bg-white/10 p-4 hover:bg-white/20"
-              href="https://create.t3.gg/en/usage/first-steps"
-              target="_blank"
-            >
-              <h3 className="text-2xl font-bold">First Steps →</h3>
-              <div className="text-lg">
-                Just the basics - Everything you need to know to set up your
-                database and authentication.
-              </div>
-            </Link>
-            <Link
-              className="flex max-w-xs flex-col gap-4 rounded-xl bg-white/10 p-4 hover:bg-white/20"
-              href="https://create.t3.gg/en/introduction"
-              target="_blank"
-            >
-              <h3 className="text-2xl font-bold">Documentation →</h3>
-              <div className="text-lg">
-                Learn more about Create T3 App, the libraries it uses, and how
-                to deploy it.
-              </div>
-            </Link>
-          </div>
-          <div className="flex flex-col items-center gap-2">
-            <p className="text-2xl text-white">
-              {hello ? hello.greeting : "Loading tRPC query..."}
-            </p>
+    <div className="min-h-screen bg-black text-green-400 overflow-hidden">
+      <div className="relative h-screen flex flex-col">
+        {/* Header */}
+        <header className="border-b border-green-800 p-2 flex justify-between items-center bg-gray-900">
+          <h1 className="font-mono text-sm">voice-dev-assistant</h1>
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="text-green-400 hover:text-green-300 font-mono text-sm border border-green-600 px-2 py-1 rounded"
+          >
+            settings
+          </button>
+        </header>
 
-            <div className="flex flex-col items-center justify-center gap-4">
-              <p className="text-center text-2xl text-white">
-                {session && <span>Logged in as {session.user?.name}</span>}
-              </p>
-              <Link
-                href={session ? "/api/auth/signout" : "/api/auth/signin"}
-                className="rounded-full bg-white/10 px-10 py-3 font-semibold no-underline transition hover:bg-white/20"
-              >
-                {session ? "Sign out" : "Sign in"}
-              </Link>
-            </div>
-          </div>
-
-          {session?.user && <LatestPost />}
+        {/* Terminal */}
+        <div className="flex-1 overflow-hidden">
+          <Terminal />
         </div>
-      </main>
-    </HydrateClient>
+
+        {/* Settings Sheet */}
+        <SettingsSheet 
+          isOpen={isSettingsOpen} 
+          onClose={() => setIsSettingsOpen(false)} 
+        />
+      </div>
+    </div>
   );
 }
