@@ -6,11 +6,7 @@ generator client {
 }
 
 datasource db {
-    provider = "sqlite"
-    // NOTE: When using mysql or sqlserver, uncomment the @db.Text annotations in model Account below
-    // Further reading:
-    // https://next-auth.js.org/adapters/prisma#create-the-prisma-schema
-    // https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#string
+    provider = "postgresql"
     url      = env("DATABASE_URL")
 }
 
@@ -26,49 +22,67 @@ model Post {
     @@index([name])
 }
 
-// Necessary for Next auth
-model Account {
-    id                       String  @id @default(cuid())
-    userId                   String
-    type                     String
-    provider                 String
-    providerAccountId        String
-    refresh_token            String? // @db.Text
-    access_token             String? // @db.Text
-    expires_at               Int?
-    token_type               String?
-    scope                    String?
-    id_token                 String? // @db.Text
-    session_state            String?
-    user                     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-    refresh_token_expires_in Int?
-
-    @@unique([provider, providerAccountId])
-}
-
-model Session {
-    id           String   @id @default(cuid())
-    sessionToken String   @unique
-    userId       String
-    expires      DateTime
-    user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
+// User model for Clerk integration
 model User {
-    id            String    @id @default(cuid())
-    name          String?
-    email         String?   @unique
-    emailVerified DateTime?
-    image         String?
-    accounts      Account[]
-    sessions      Session[]
+    id            String         @id // This will be the Clerk user ID
+    email         String?        @unique
+    createdAt     DateTime       @default(now())
+    updatedAt     DateTime       @updatedAt
     posts         Post[]
+    voiceSessions VoiceSession[]
 }
 
-model VerificationToken {
-    identifier String
-    token      String   @unique
-    expires    DateTime
+// Voice Dev Assistant Models
+model VoiceSession {
+    id          String      @id @default(cuid())
+    userId      String
+    createdAt   DateTime    @default(now())
+    updatedAt   DateTime    @updatedAt
+    user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+    transcripts Transcript[]
+    plans       VoicePlan[]
 
-    @@unique([identifier, token])
+    @@index([userId, createdAt])
+}
+
+model Transcript {
+    id        String       @id @default(cuid())
+    sessionId String
+    text      String       @db.Text
+    duration  Int?         // in milliseconds
+    createdAt DateTime     @default(now())
+    session   VoiceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+    plans     VoicePlan[]
+
+    @@index([sessionId, createdAt])
+}
+
+model VoicePlan {
+    id           String       @id @default(cuid())
+    sessionId    String
+    transcriptId String
+    provider     String       // 'claude' | 'openai' | 'gemini'
+    planJson     String       @db.Text // JSON string of the plan
+    summary      String       @db.Text
+    rationale    String       @db.Text
+    createdAt    DateTime     @default(now())
+    session      VoiceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+    transcript   Transcript   @relation(fields: [transcriptId], references: [id], onDelete: Cascade)
+    issueRefs    IssueRef[]
+
+    @@index([sessionId, createdAt])
+}
+
+model IssueRef {
+    id          String    @id @default(cuid())
+    planId      String
+    repo        String    // "owner/name" format
+    issueNumber Int
+    url         String
+    title       String    @db.Text
+    createdAt   DateTime  @default(now())
+    plan        VoicePlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+    @@index([planId])
+    @@index([repo, issueNumber])
 }

@@ -18,10 +18,20 @@ export const postRouter = createTRPCRouter({
   create: protectedProcedure
     .input(z.object({ name: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
+      // Ensure user exists in database first
+      await ctx.db.user.upsert({
+        where: { id: ctx.user.id },
+        update: {},
+        create: {
+          id: ctx.user.id,
+          email: ctx.user.emailAddresses[0]?.emailAddress,
+        },
+      });
+
       return ctx.db.post.create({
         data: {
           name: input.name,
-          createdBy: { connect: { id: ctx.session.user.id } },
+          createdBy: { connect: { id: ctx.user.id } },
         },
       });
     }),
@@ -29,7 +39,7 @@ export const postRouter = createTRPCRouter({
   getLatest: protectedProcedure.query(async ({ ctx }) => {
     const post = await ctx.db.post.findFirst({
       orderBy: { createdAt: "desc" },
-      where: { createdBy: { id: ctx.session.user.id } },
+      where: { createdBy: { id: ctx.user.id } },
     });
 
     return post ?? null;
